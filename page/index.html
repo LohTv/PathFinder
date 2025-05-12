@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Path Recall Game</title>
+  <style>
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background-color: #ADD8E6;
+      border: 2px solid black;
+    }
+    body {
+      text-align: center;
+      font-family: Arial, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <h1>Path Recall</h1>
+  <canvas id="gameCanvas"></canvas>
+  <p id="scoreDisplay">Score: 0 | Level: 1</p>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const screenWidth = window.innerWidth;
+    const CELL_SIZE = (80 / 1536) * screenWidth;
+    const GRID_SIZE = 5;
+    const WIDTH = CELL_SIZE * GRID_SIZE;
+    const HEIGHT = CELL_SIZE * GRID_SIZE + (100 / 400) * WIDTH;
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+
+    const DARK_BLUE = "#00008B";
+    const LIGHT_BLUE = "#ADD8E6";
+    const HOVER_COLOR = "#FFD700";
+    const CORRECT_CLICK_COLOR = "#00FF00";
+    const PATH_COLOR = "#FF0000";
+    const WHITE = "#FFFFFF";
+
+    let path = [];
+    let clickIndex = 0;
+    let greenCell = null;
+    let score = 0;
+    let level = 1;
+    let gameOver = false;
+    let showLevel = true;
+    let showIndex = 0;
+    let lastRevealTime = Date.now();
+    let lastGreenTime = Date.now();
+
+    function drawGrid(mousePos, clicked) {
+      ctx.fillStyle = LIGHT_BLUE;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let row = 0; row < GRID_SIZE; row++) {
+        for (let col = 0; col < GRID_SIZE; col++) {
+          const x = col * CELL_SIZE;
+          const y = row * CELL_SIZE;
+          let color = DARK_BLUE;
+
+          if (gameOver) color = "#FF0000";
+          else if (greenCell && greenCell[0] === row && greenCell[1] === col) color = CORRECT_CLICK_COLOR;
+          else if (showLevel && path[showIndex] && path[showIndex][0] === row && path[showIndex][1] === col) color = PATH_COLOR;
+          else if (mousePos &&
+            mousePos.x >= x && mousePos.x < x + CELL_SIZE &&
+            mousePos.y >= y && mousePos.y < y + CELL_SIZE) {
+            color = clicked ? HOVER_COLOR : LIGHT_BLUE;
+          }
+
+          ctx.fillStyle = color;
+          ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+          ctx.strokeStyle = WHITE;
+          ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
+        }
+      }
+
+      ctx.fillStyle = "black";
+      ctx.font = "24px Arial";
+      ctx.fillText(`Score: ${score}`, 10, HEIGHT - 20);
+      ctx.fillText(`Level: ${level}`, WIDTH / 2 + 10, HEIGHT - 20);
+    }
+
+    function createPath(len) {
+      const dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+      const start = [Math.floor(Math.random() * GRID_SIZE), Math.floor(Math.random() * GRID_SIZE)];
+      const path = [start];
+      for (let i = 1; i < len; i++) {
+        const [x, y] = path[path.length - 1];
+        const validDirs = dirs.filter(([dx, dy]) =>
+          x + dx >= 0 && x + dx < GRID_SIZE && y + dy >= 0 && y + dy < GRID_SIZE
+        );
+        const [dx, dy] = validDirs[Math.floor(Math.random() * validDirs.length)];
+        path.push([x + dx, y + dy]);
+      }
+      return path;
+    }
+
+    function handleClick(mousePos) {
+      const row = Math.floor(mousePos.y / CELL_SIZE);
+      const col = Math.floor(mousePos.x / CELL_SIZE);
+      if (!gameOver && !showLevel && clickIndex < path.length) {
+        if (row === path[clickIndex][0] && col === path[clickIndex][1]) {
+          greenCell = [row, col];
+          clickIndex++;
+          score++;
+          lastGreenTime = Date.now();
+        } else {
+          gameOver = true;
+          level = 1;
+          score = 0;
+        }
+      } else if (gameOver) {
+        gameOver = false;
+        startNewLevel();
+      }
+    }
+
+    function startNewLevel() {
+      path = createPath(level);
+      clickIndex = 0;
+      showIndex = 0;
+      showLevel = true;
+      lastRevealTime = Date.now();
+      greenCell = null;
+    }
+
+    function gameLoop() {
+      const now = Date.now();
+      const mousePos = canvas.mousePos;
+      const clicked = canvas.clicked;
+      canvas.clicked = false;
+
+      if (showLevel && now - lastRevealTime > 1000) {
+        showIndex++;
+        lastRevealTime = now;
+        if (showIndex >= path.length) {
+          showLevel = false;
+        }
+      }
+
+      if (greenCell && now - lastGreenTime > 1000) {
+        greenCell = null;
+      }
+
+      if (score === level && !gameOver) {
+        score = 0;
+        level++;
+        startNewLevel();
+      }
+
+      drawGrid(mousePos, clicked);
+      requestAnimationFrame(gameLoop);
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      canvas.mousePos = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    });
+
+    canvas.addEventListener('mousedown', () => {
+      canvas.clicked = true;
+      handleClick(canvas.mousePos);
+    });
+
+    canvas.mousePos = null;
+    canvas.clicked = false;
+
+    startNewLevel();
+    gameLoop();
+  </script>
+</body>
+</html>
